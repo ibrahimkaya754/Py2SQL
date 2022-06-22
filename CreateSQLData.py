@@ -10,10 +10,11 @@ from mysql.connector import Error
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import time
 
 class Database():
     def __init__(self,DBname,host="127.0.0.1",user="DB01",
-                      password="123456",createNewDB= False):
+                      password="123456"):
         """
         This is the Database Class where we make the initial 
         connection with the MySQL server.
@@ -24,13 +25,12 @@ class Database():
             password    : (str) Password for the connection
             createNewDB : (bool) True if a new DB is to be created
         """
-        self.host = host
-        self.user = user
+        self.host     = host
+        self.user     = user
         self.password = password
-        self.DBname = DBname
+        self.DBname   = DBname
         self.__connect2Server()
-        if createNewDB:
-            self.createDB()
+        self.__connect2DataBase()
 
     def __connect2Server(self):
         """
@@ -54,7 +54,7 @@ class Database():
         This function tries to make the connection with the database on the server.
         """
         try:
-            mydb = connect(host=self.host,
+            self.mydb = connect(host=self.host,
                            user = self.user,
                            password = self.password,
                            database= self.DBname)
@@ -63,66 +63,77 @@ class Database():
         except Error as err:
             print(f"Error: '{err}'")
             print("No Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
-        return mydb
-
-            
-              
-    ### This function provides the columns of the tables ###
-    def showtables(self,Tablename):
-        ### The very 1st thing is to check the table names ###
-        self.mycursor.execute("SHOW COLUMNS FROM "+Tablename+" IN "+self.DBname)
-        columns = []
-        for col in self.mycursor:
-            columns.append(list(col)[0])
-        return columns
+                          
+    def showtables(self):
+        """
+        This function provides the columns of the tables 
+        The very 1st thing is to check the table names 
+        """
+        self.mycursor  = self.mydb.cursor()
+        self.mycursor.execute("SHOW TABLES")
+        self.table = []
+        self.columns = {}
+        for tbl in self.mycursor:
+            print("Existing Tables are: ")
+            print(tbl)
+            self.table.append(tbl)
+            self.columns[str(tbl)] = []
+        for tbl in self.table:
+            self.mycursor.execute("SHOW COLUMNS FROM "+tbl[0]+" IN "+self.DBname)
+            for col in self.mycursor:
+                self.columns[str(tbl)].append(list(col)[0])
+        for key,val in self.columns.items():
+            print("Existing columns in table %s are:" % (key))
+            print(val)
       
-
-    def insert2Table(self,Tablename,Values):
+    def insertRawWifiData(self,Tablename="ALLInfo",dataLoc="../all_MAC.csv"):
         """
-        This is the main functional sub-module which provides logging newly acquired data ###
-        The user should give the data (as Values argument) as numpy array
+        This is the main functional sub-module which provides logging newly acquired data
+        We are giving the values in .csv file (i.e.,allMac.csv)
         Args:
-            Tablename :
-            Values    :
+            Tablename : (str) AllInfo table consists raw wifi data before preprocessing is done
+            dataLoc   : (str) is the addres of the csv file
         """
-        self.mydb      = self.__connect2DataBase()
+        start_time     = time.time()
         self.mycursor  = self.mydb.cursor()
         now            = datetime.now()
-        datetimestring = now.strftime("%d/%m/%Y %H:%M:%S")
-        vals           = Values
-        columns        = self.showtables(Tablename)
-        print(columns)
-        
-        ### Appending the columns existing inside the Tablename to cols #######
-        cols = "("
-        wildcard = "("
-        for c in columns[1:]:
-            cols = cols+c+","
-            wildcard = wildcard + "%s,"
-        cols = cols[:-1]+")"
-        wildcard = wildcard[:-1]+")"
-        print("Existing Columns in table '%s' are: %s " % (Tablename,cols))
-        #######################################################################
-        for elem in vals:
-            elem = list(elem)
-            elem.append(datetimestring)
-            sqlOrder= "INSERT INTO "+Tablename+" "+cols+" VALUES "+wildcard
-            self.mycursor.execute(sqlOrder,list(elem))
+        datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
+        AllDataPd      = pd.read_csv(dataLoc)
+        AllDataPd.rename(columns={'Unnamed: 0':'DataID'},inplace=True)
+
+        self.showtables()
+
+        table          = Tablename
+        now            = datetime.now()
+        datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
+        numberOfSeq = len(AllDataPd.values) // 1000
+        res = len(AllDataPd.values) % 1000
+        print("WE ARE SENDING DATA AS PACKAGES OF SIZE 1000")
+        for seq in range(numberOfSeq):
+            init = seq*1000
+            end  = (seq+1)*1000
+            sqlOrder       = "INSERT INTO "+table+" (File_no,Burst_no,SNRs,Burst_start_offset,Burst_end_offset,Burst_duration_microsec,CFO,receiver_address,transmitter_address,mac_frame_type,format_,Burst_name,File_name,SdrPozisyonID,CihazPozisyonID,SdrID,DateTime) VALUES "
+            for ii in AllDataPd.values[init:end]:
+                order          = list(ii[1:])
+                order.append(datetimestring)
+                sqlOrder= sqlOrder+str(tuple(order))+","
+
+            self.mycursor.execute(sqlOrder[:-1])
             self.mydb.commit()
+            print("PACKAGE %s HAS BEEN UPLOADED" % (seq))
+
+        ## The last portion of data will be sent to MySQLDB
+
+        for ii in AllDataPd.values[end:]:
+            order          = list(ii[1:])
+            order.append(datetimestring)
+            sqlOrder= sqlOrder+str(tuple(order))+","
+
+        self.mycursor.execute(sqlOrder[:-1])
+        self.mydb.commit()
+
+        print("--- Data Loading to MySQL DB is: %s seconds ---" % (time.time() - start_time))
         
-        self.mycursor.execute("SELECT COUNT("+columns[0]+") FROM "+Tablename)
-        rows = self.mycursor.fetchall()        
-        print("number of total data: ",rows[0][0])
-        #######################################################################
-            
-my9db = Database(createNewDB=False,DBname="my3rdDBfromSSH")
-my9db.createTable(["table1","table2","table3"],
-                  ["pk1","pk2","pk3"],
-                  [["col1"],["col1","col2"],["col1","col2","col3"]],
-                  [["varchar(255)"],["varchar(255)","varchar(255)"],["varchar(255)","varchar(255)","varchar(255)"]])
-mydummyarray1= np.random.rand(20,1)
-mydummyarray2= np.random.rand(20,2)
-mydummyarray3= np.random.rand(20,3)
-my9db.insert2Table("table1", mydummyarray1)
-my9db.insert2Table("table2", mydummyarray2)
-my9db.insert2Table("table3", mydummyarray3)
+mydb = Database(DBname="IOTDB")
+mydb.insertRawWifiData()
+

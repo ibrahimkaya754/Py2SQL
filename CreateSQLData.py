@@ -17,8 +17,7 @@ from datetime import datetime
 import time
 
 class Database():
-    def __init__(self,DBname,host="127.0.0.1",user="DB01",
-                      password="123456"):
+    def __init__(self,DBname,host="127.0.0.1",user="DB01",password="123456"):
         """
         This is the Database Class where we make the initial 
         connection with the MySQL server.
@@ -34,6 +33,7 @@ class Database():
         self.DBname   = DBname
         self.__connect2Server()
         self.__connect2DataBase()
+        self.showtables()
 
         ExampleUsage =  """
         ### EXAMPLE USAGE of MODULE - COPY AND PASTE THE RELATED PARTS ###
@@ -45,7 +45,7 @@ class Database():
         mydb.insertRawWifiData() 
 
         ## FETCH DATA FROM DATABASE
-        query = "select * from ALLInfo where DataID>1955000"
+        query = "select * from ALLInfo where DateTime>='2022-06-23 10:00'"
         mydb.mycursor.execute(query)
         mydb.fetchedData   = mydb.mycursor.fetchall()
         mydb.fetchedDataDF = pd.DataFrame(mydb.fetchedData)
@@ -80,9 +80,9 @@ class Database():
         """
         try:
             self.mydb = connect(host=self.host,
-                           user = self.user,
-                           password = self.password,
-                           database= self.DBname)
+                                user = self.user,
+                                password = self.password,
+                                database= self.DBname)
             print("Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
             self.mycursor  = self.mydb.cursor()
         except Error as err:
@@ -119,7 +119,6 @@ class Database():
             dataLoc   : (str) is the addres of the csv file
         """
         start_time     = time.time()
-        self.mycursor  = self.mydb.cursor()
         now            = datetime.now()
         datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
         AllDataPd      = pd.read_csv(dataLoc)
@@ -165,7 +164,6 @@ class Database():
             Column    : Column inside the table where the condition will be related to
             Condition : Condition to fetch the data
         """
-        self.showtables()
         tablename = Tablename
         column    = Column
         condition = Condition

@@ -1,6 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 Created on Tue Mar 29 15:58:45 2022
+
+BASICALLY DATA IN CSV FILE IS UPLOADED TO DATABASE ON MYSQL.
+WE CREATE AN INSTANCE AND MAKE THE CONNECTION WITH THE DATABASE AT SERVER.
+DATA UPLOADING CAN BE SLOW (MOST PROBABLY PROBLEMATIC) IS ALL THE DATA IS TRIED TO BE SENT TOTALLY.
+TO PREVENT IT, WE DIVIDE THE TOTAL DATA TO PACKAGES OF SMALL DATA AT SIZEs 1000.
 
 @author: ibrahim.kaya
 """
@@ -23,7 +27,6 @@ class Database():
             host        : "127.0.0.1" - localhost
             user        : (str) Username
             password    : (str) Password for the connection
-            createNewDB : (bool) True if a new DB is to be created
         """
         self.host     = host
         self.user     = user
@@ -31,6 +34,28 @@ class Database():
         self.DBname   = DBname
         self.__connect2Server()
         self.__connect2DataBase()
+
+        ExampleUsage =  """
+        ### EXAMPLE USAGE of MODULE - COPY AND PASTE THE RELATED PARTS ###
+        
+        ##CONNECT TO SERVER AND DATABASE
+        mydb  = Database(DBname="IOTDB")
+
+        ##ADD DATA TO DATABASE
+        mydb.insertRawWifiData() 
+
+        ## FETCH DATA FROM DATABASE
+        query = "select * from ALLInfo where DataID>1955000"
+        mydb.mycursor.execute(query)
+        mydb.fetchedData   = mydb.mycursor.fetchall()
+        mydb.fetchedDataDF = pd.DataFrame(mydb.fetchedData)
+
+        ## TO CHANGE THE COLNAMES TO THE ONES EXISTING ON THE DATABASE
+        colnameDict = {ii:jj for ii,jj in zip(list(mydb.fetchedDataDF.columns),list(mydb.columns.values())[0])}
+        mydb.fetchedDataDF.rename(columns=colnameDict,inplace=True)
+        """   
+
+        print(ExampleUsage)
 
     def __connect2Server(self):
         """
@@ -59,7 +84,7 @@ class Database():
                            password = self.password,
                            database= self.DBname)
             print("Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
-            
+            self.mycursor  = self.mydb.cursor()
         except Error as err:
             print(f"Error: '{err}'")
             print("No Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
@@ -69,7 +94,6 @@ class Database():
         This function provides the columns of the tables 
         The very 1st thing is to check the table names 
         """
-        self.mycursor  = self.mydb.cursor()
         self.mycursor.execute("SHOW TABLES")
         self.table = []
         self.columns = {}
@@ -107,7 +131,6 @@ class Database():
         now            = datetime.now()
         datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
         numberOfSeq = len(AllDataPd.values) // 1000
-        res = len(AllDataPd.values) % 1000
         print("WE ARE SENDING DATA AS PACKAGES OF SIZE 1000")
         for seq in range(numberOfSeq):
             init = seq*1000
@@ -133,7 +156,32 @@ class Database():
         self.mydb.commit()
 
         print("--- Data Loading to MySQL DB is: %s seconds ---" % (time.time() - start_time))
+
+    def fetchData(self,Tablename="ALLInfo",Column="DataID",Condition=">1955000"):
+        """
+        This is the function to fetch data with a condition.
+        Args:
+            Tablename : The table where the data will be fetched
+            Column    : Column inside the table where the condition will be related to
+            Condition : Condition to fetch the data
+        """
+        self.showtables()
+        tablename = Tablename
+        column    = Column
+        condition = Condition
+       
+        query     = "select * from "+tablename+" where "+column+condition
+        print("The '%s' query has been sent to MySQL database" % (query))
+        self.mycursor.execute(query)
         
-mydb = Database(DBname="IOTDB")
-mydb.insertRawWifiData()
+        self.fetchedData   = self.mycursor.fetchall()
+        self.fetchedDataDF = pd.DataFrame(self.fetchedData)
+
+        ## Below we change the colnames of DataFrame to the names existing inside the Database.
+        colnameDict = {ii:jj for ii,jj in zip(list(self.fetchedDataDF.columns),list(self.columns.values())[0])}
+        self.fetchedDataDF.rename(columns=colnameDict,inplace=True)
+
+
+   
+
 

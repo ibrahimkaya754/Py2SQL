@@ -118,28 +118,36 @@ class Database():
             Tablename : (str) AllInfo table consists raw wifi data before preprocessing is done
             dataLoc   : (str) is the addres of the csv file
         """
-        start_time     = time.time()
-        now            = datetime.now()
-        datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
+        
+        #now            = datetime.now()
+        #datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
         AllDataPd      = pd.read_csv(dataLoc)
         AllDataPd.rename(columns={'Unnamed: 0':'DataID'},inplace=True)
 
+        def ParseDateTime(ii):
+
+            date_ = AllDataPd["Burst_name"].values[ii][5:11]
+            time_ = AllDataPd["Burst_name"].values[ii][12:18]
+            datetimestring = date_[0:2]+"-"+date_[2:4]+"-"+date_[4:]+" "+time_[0:2]+"-"+time_[2:4]+"-"+time_[4:]
+            return datetimestring
+        
         self.showtables()
 
         table          = Tablename
-        now            = datetime.now()
-        datetimestring = now.strftime("%Y-%m-%d %H-%M-%S")
-        numberOfSeq = len(AllDataPd.values) // 1000
+        numberOfSeq    = len(AllDataPd.values) // 1000
         print("WE ARE SENDING DATA AS PACKAGES OF SIZE 1000")
+        start_time     = time.time()
+        counter        = 0
         for seq in range(numberOfSeq):
             init = seq*1000
             end  = (seq+1)*1000
             sqlOrder       = "INSERT INTO "+table+" (File_no,Burst_no,SNRs,Burst_start_offset,Burst_end_offset,Burst_duration_microsec,CFO,receiver_address,transmitter_address,mac_frame_type,format_,Burst_name,File_name,SdrPozisyonID,CihazPozisyonID,SdrID,DateTime) VALUES "
             for ii in AllDataPd.values[init:end]:
                 order          = list(ii[1:])
+                datetimestring = ParseDateTime(counter)
                 order.append(datetimestring)
-                sqlOrder= sqlOrder+str(tuple(order))+","
-
+                sqlOrder       = sqlOrder+str(tuple(order))+","
+                counter        = counter + 1
             self.mycursor.execute(sqlOrder[:-1])
             self.mydb.commit()
             print("PACKAGE %s HAS BEEN UPLOADED" % (seq))
@@ -148,15 +156,17 @@ class Database():
 
         for ii in AllDataPd.values[end:]:
             order          = list(ii[1:])
+            datetimestring = ParseDateTime(counter)
             order.append(datetimestring)
-            sqlOrder= sqlOrder+str(tuple(order))+","
+            sqlOrder       = sqlOrder+str(tuple(order))+","
+            counter        = counter + 1
 
         self.mycursor.execute(sqlOrder[:-1])
         self.mydb.commit()
 
         print("--- Data Loading to MySQL DB is: %s seconds ---" % (time.time() - start_time))
 
-    def fetchData(self,Tablename="ALLInfo",Column="DataID",Condition=">1955000"):
+    def fetchData(self,Tablename="ALLInfo",Column="DateTime",Condition=">1955000"):
         """
         This is the function to fetch data with a condition.
         Args:

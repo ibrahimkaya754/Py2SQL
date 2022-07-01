@@ -1,5 +1,6 @@
+use IOTDB;
 CREATE TABLE `ALLInfo` (
-  `DataID` int NOT NULL,
+  `DataID` int NOT NULL AUTO_INCREMENT,
   `File_no` int DEFAULT NULL,
   `Burst_no` int DEFAULT NULL,
   `SNRs` double DEFAULT NULL,
@@ -16,5 +17,6 @@ CREATE TABLE `ALLInfo` (
   `SdrPozisyonID` varchar(240) DEFAULT NULL,
   `CihazPozisyonID` varchar(240) DEFAULT NULL,
   `SdrID` varchar(240) DEFAULT NULL,
+  `DateTime` datetime DEFAULT NULL,
   PRIMARY KEY (`DataID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+) ENGINE=InnoDB AUTO_INCREMENT=5023871 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci

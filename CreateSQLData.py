@@ -17,7 +17,7 @@ from datetime import datetime
 import time
 
 class Database():
-    def __init__(self,DBname,host="127.0.0.1",user="DB01",password="123456"):
+    def __init__(self,DBname,host="127.0.0.1",user="DB01",password="123456",port="3306"):
         """
         This is the Database Class where we make the initial 
         connection with the MySQL server.
@@ -31,6 +31,7 @@ class Database():
         self.user     = user
         self.password = password
         self.DBname   = DBname
+        self.port     = port
         self.__connect2Server()
         self.__connect2DataBase()
         self.showtables()
@@ -45,7 +46,7 @@ class Database():
         mydb.insertRawWifiData() 
 
         ## FETCH DATA FROM DATABASE
-        query = "select * from ALLInfo where DateTime>='2022-06-23 10:00'"
+        query = "select * from ALLInfo where DateTime>='2022-04-03 10:00' AND DateTime<='2022-04-05 10:00'"
         mydb.mycursor.execute(query)
         mydb.fetchedData   = mydb.mycursor.fetchall()
         mydb.fetchedDataDF = pd.DataFrame(mydb.fetchedData)
@@ -64,7 +65,8 @@ class Database():
         try:
             self.srvr = connect(host=self.host,
                                 user = self.user,
-                                password = self.password)
+                                password = self.password,
+                                port = self.port)
             print("Succesful Connection to Server at Host: %s" % (self.host))
             self.mysrvr = self.srvr.cursor()
             self.mysrvr.execute("SHOW DATABASES")
@@ -72,7 +74,7 @@ class Database():
             [print(ii) for ii in self.mysrvr]                
         except Error as err:
             print(f"Error: '{err}'")
-            print("No Succesful Connection to Server at host: %s" % (self.host))
+            print("No Succesful Connection to Server at Host: %s:%s" % (self.host,self.port))
     
     def __connect2DataBase(self):
         """
@@ -82,12 +84,13 @@ class Database():
             self.mydb = connect(host=self.host,
                                 user = self.user,
                                 password = self.password,
-                                database= self.DBname)
-            print("Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
+                                database= self.DBname,
+                                port=self.port)
+            print("Succesful Connection to DataBase %s on Server at Host: %s:%s" % (self.DBname,self.host,self.port))
             self.mycursor  = self.mydb.cursor()
         except Error as err:
             print(f"Error: '{err}'")
-            print("No Succesful Connection to DataBase %s on Server at Host: %s" % (self.DBname,self.host))
+            print("No Succesful Connection to DataBase %s on Server at Host: %s:%s" % (self.DBname,self.host,self.port))
                           
     def showtables(self):
         """
@@ -153,14 +156,13 @@ class Database():
             print("PACKAGE %s HAS BEEN UPLOADED" % (seq))
 
         ## The last portion of data will be sent to MySQLDB
-
+        sqlOrder       = "INSERT INTO "+table+" (File_no,Burst_no,SNRs,Burst_start_offset,Burst_end_offset,Burst_duration_microsec,CFO,receiver_address,transmitter_address,mac_frame_type,format_,Burst_name,File_name,SdrPozisyonID,CihazPozisyonID,SdrID,DateTime) VALUES "
         for ii in AllDataPd.values[end:]:
             order          = list(ii[1:])
             datetimestring = ParseDateTime(counter)
             order.append(datetimestring)
             sqlOrder       = sqlOrder+str(tuple(order))+","
             counter        = counter + 1
-
         self.mycursor.execute(sqlOrder[:-1])
         self.mydb.commit()
 
